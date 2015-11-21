@@ -1,0 +1,126 @@
+---
+title: "Machine Learning Project"
+output: html_document
+---
+
+ The goal of this project is to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. 
+ 
+how you built your model, 
+how you useddi
+what you think the expected out of sample error is, 
+why you made the choices you did. 
+
+R markdown and compiled HTML file 
+
+
+expect the out of sample error to be and estimate the error appropriately with cross-validation
+
+out of expect error
+data have two parts: signal vs noise
+∗ goal of predictor (should be simple/robust) = find signal
+∗ it is possible to design an accurate in-sample predictor, but it captures both signal and noise
+∗ predictor won’t perform as well on new sample
+– often times it is better to give up a little accuracy for more robustness when predicting on new
+data
+
+Cross validation
+we are able to fit/test various different models with different variables included to the find the
+best one on the cross-validated test sets
+– we are able to test out different types of prediction algorithms to use and pick the best performing
+one
+– we are able to choose the parameters in prediction function and estimate their values
+– Note: original test set completely untouched, so when final prediction algorithm is applied, the
+result will be an unbiased measurement of the out of sample accuracy of the model
+
+Using K-fold
+
+```{r}
+pmldata = read.csv("Downloads/pml-training.csv")  # read csv file 
+head(pmldata)
+
+pmlData<-pmldata[ , grepl("user_name|^roll_|^pitch_|^yaw_|^total_accel_|classe", names(pmldata))]
+#cleaning the data so that only complete cases are present
+pmlData<-pmlData[complete.cases(pmlData),]
+
+```
+for large sample sizes
+– 60% training
+– 20% test
+– 20% validation
+
+randomly 
+```{r}
+# load packages and data
+library(caret)
+set.seed(12345)
+
+inTraining <- createDataPartition(pmlData$classe, p = .75, list = FALSE)
+training <- pmlData[ inTraining,]
+testing  <- pmlData[-inTraining,]
+
+
+fitControl <- trainControl(## 10-fold CV
+                           method = "repeatedcv",
+                           number = 10,
+                           ## repeated 2 times
+                           repeats = 2)
+
+set.seed(825)
+gbmFit1 <- train(classe ~ ., as.data.frame(training),
+                 method = "gbm",
+                 trControl = fitControl,
+                 ## This last option is actually one
+                 ## for gbm() that passes through
+                 verbose = FALSE
+                 )
+gbmFit1
+```
+
+To Compare the prediction results with the testing data.
+```{r, echo = TRUE}
+table(predict(gbmFit1, testing),testing$classe)
+```
+
+To Statistically anaylyse the prediction.
+```{r, echo = TRUE}
+# result evaluation
+confusionMatrix(testing$classe,predict(gbmFit1,testing))
+```
+
+If We want to see how the prediction re-iterate itself, we can do a plot with on it.
+```{r, echo = TRUE}
+# plot
+trellis.par.set(caretTheme())
+plot(gbmFit1, metric = "Kappa")
+varImp(gbmFit1)
+```
+
+
+
+
+# create training set indexes with 75% of data
+inTrain <- createDataPartition(y=m_data$classe,p=0.75, list=FALSE)
+# subset mydata data to training
+training <- m_data[inTrain,]
+# subset mydata data (the rest) to test
+testing <- m_data[-inTrain,]
+# dimension of original and t
+rbind("original dataset" = dim(m_data),"training set" = dim(training))
+
+
+```
+
+
+
+```{r}
+library(ggplot2)
+classeP <- classCenter(training[,c(training$roll_belt,training$roll_pitch_forearm)], training$classe, gbmFit1$finalModel$prox)
+# convert irisP to data frame and add classe column
+classeP <- as.data.frame(classeP); classeP$classe <- rownames(classeP)
+# plot data points
+p <- qplot(avg_yaw_dumbbell, avg_roll_dumbbell, col=classe,data=training)
+# add the cluster centers
+p + geom_point(aes(x=avg_yaw_dumbbell,y=avg_roll_dumbbell,col=classe),size=5,shape=4,data=classeP)
+```
+
+
