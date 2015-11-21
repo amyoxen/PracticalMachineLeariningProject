@@ -3,53 +3,37 @@ title: "Machine Learning Project"
 output: html_document
 ---
 
- The goal of this project is to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. 
- 
-how you built your model, 
-how you useddi
-what you think the expected out of sample error is, 
-why you made the choices you did. 
+ This project is to anaylize data and predict behavior from accelerometers on the belt, forearm, arm, and dumbell of 6 participants, who were asked to perform barbell lifts correctly and incorrectly in 5 different ways. The outcome of the pridicting variable is the "classe" variable in the training set. In this analysis, the data will be explored and cleaned, the outcome will then be predicted with a selected model, the model will be tested with accuracy on predicting the test set.
 
-R markdown and compiled HTML file 
-
-
-expect the out of sample error to be and estimate the error appropriately with cross-validation
-
-out of expect error
-data have two parts: signal vs noise
-∗ goal of predictor (should be simple/robust) = find signal
-∗ it is possible to design an accurate in-sample predictor, but it captures both signal and noise
-∗ predictor won’t perform as well on new sample
-– often times it is better to give up a little accuracy for more robustness when predicting on new
-data
-
-Cross validation
-we are able to fit/test various different models with different variables included to the find the
-best one on the cross-validated test sets
-– we are able to test out different types of prediction algorithms to use and pick the best performing
-one
-– we are able to choose the parameters in prediction function and estimate their values
-– Note: original test set completely untouched, so when final prediction algorithm is applied, the
-result will be an unbiased measurement of the out of sample accuracy of the model
-
-Using K-fold
-
-```{r}
+##Collect and clean data
+The data is first read into the pmldata dataset.  
+```{r, results='hide'}
 pmldata = read.csv("Downloads/pml-training.csv")  # read csv file 
 head(pmldata)
 
+pmltesting = read.csv("Downloads/pml-testing.csv")  # read csv file 
+head(pmltesting)
+```
+
+After viewing the data, it was found that significant portion of the columns are filled with nonavailable contents or contents with zeros. Futhermore, in the testing dataset, many of the same columns are all filled with nonavaialbe values. It leads to the decision to extract the following variables to predict the outcome:
+user_name, roll_belt, pitch_belt, yaw_belt, total_accel_belt, roll_arm, pitch_arm, yaw_arm, total_accel_arm, roll_dumbbell,pitch_dumbbell, yaw_dumbbell, total_accel_dumbbell, roll_forearm, pitch_forearm, yaw_forearm, total_accel_forearm
+
+These columns could be extracted simply by a line of script:
+```{r, results='hide'}
 pmlData<-pmldata[ , grepl("user_name|^roll_|^pitch_|^yaw_|^total_accel_|classe", names(pmldata))]
 #cleaning the data so that only complete cases are present
 pmlData<-pmlData[complete.cases(pmlData),]
+head(pmlData)
 
 ```
-for large sample sizes
-– 60% training
-– 20% test
-– 20% validation
 
-randomly 
-```{r}
+```{r, results='asis'}
+dim(pmlData)
+```
+
+##Expectation of Out of Sample Errors
+Because of both signal and noise presents in the traning set, out of expect error generally occurs when building the training model from the training set and applies it to the test set. The approach to more accurate prediction is to eliminate the noises of the training set. Fortunately, we have a large dataset. In this case, the whole data will be randomly splited into a training and a testing set, where the testing set is to evaluate the final prediciton. 
+```{r, echo =TRUE}
 # load packages and data
 library(caret)
 set.seed(12345)
@@ -57,14 +41,21 @@ set.seed(12345)
 inTraining <- createDataPartition(pmlData$classe, p = .75, list = FALSE)
 training <- pmlData[ inTraining,]
 testing  <- pmlData[-inTraining,]
+```
 
-
+##Cross Validation
+To the training set, the data will be splited into 10 folds. We are able to fit/test a model with different parameters to the find the best ones on the cross-validated test sets. In this case, the model will be built and optimized using the 10-fold cross validation and twice sampling. 
+```{r, echo =TRUE}
 fitControl <- trainControl(## 10-fold CV
                            method = "repeatedcv",
                            number = 10,
                            ## repeated 2 times
                            repeats = 2)
+```
 
+##Build Prediciton Moedel
+We use Gradient Boosting machine (GBM) model to predict the outcome. It produces a prediction model in the form of an ensemble of weak prediction models, typically decision trees. It builds the model in a stage-wise fashion like other boosting methods do, and it generalizes them by allowing optimization of an arbitrary differentiable loss function.
+```{r, echo =TRUE, cache=TRUE}
 set.seed(825)
 gbmFit1 <- train(classe ~ ., as.data.frame(training),
                  method = "gbm",
@@ -76,12 +67,10 @@ gbmFit1 <- train(classe ~ ., as.data.frame(training),
 gbmFit1
 ```
 
-To Compare the prediction results with the testing data.
-```{r, echo = TRUE}
-table(predict(gbmFit1, testing),testing$classe)
-```
+#Evaluating the Prediction Model
+The original test set remains completely untouched at this stage, so when final prediction algorithm is applied, the result will only be an unbiased measurement of the of sample accuracy of the model. We can furhter analyze the accuracy of the prediction of the model using the testing set.
 
-To Statistically anaylyse the prediction.
+To Statistically analyze the prediction, we can use a confusionMatrix:
 ```{r, echo = TRUE}
 # result evaluation
 confusionMatrix(testing$classe,predict(gbmFit1,testing))
@@ -92,35 +81,13 @@ If We want to see how the prediction re-iterate itself, we can do a plot with on
 # plot
 trellis.par.set(caretTheme())
 plot(gbmFit1, metric = "Kappa")
+```
+
+At the end, we can also find the most impacted variables in the prediction.
+```{r, echo = TRUE}
 varImp(gbmFit1)
 ```
 
-
-
-
-# create training set indexes with 75% of data
-inTrain <- createDataPartition(y=m_data$classe,p=0.75, list=FALSE)
-# subset mydata data to training
-training <- m_data[inTrain,]
-# subset mydata data (the rest) to test
-testing <- m_data[-inTrain,]
-# dimension of original and t
-rbind("original dataset" = dim(m_data),"training set" = dim(training))
-
-
-```
-
-
-
-```{r}
-library(ggplot2)
-classeP <- classCenter(training[,c(training$roll_belt,training$roll_pitch_forearm)], training$classe, gbmFit1$finalModel$prox)
-# convert irisP to data frame and add classe column
-classeP <- as.data.frame(classeP); classeP$classe <- rownames(classeP)
-# plot data points
-p <- qplot(avg_yaw_dumbbell, avg_roll_dumbbell, col=classe,data=training)
-# add the cluster centers
-p + geom_point(aes(x=avg_yaw_dumbbell,y=avg_roll_dumbbell,col=classe),size=5,shape=4,data=classeP)
-```
-
+##Conclusion
+From this project, we built a model with more than 90% accuracy on predicting the testing samples. The model is tested and passes all the predcition cases in this project submission portion. To further analyze this model, It turns that roll_belt and pitch_forearm are the most impacted variables to the prediction. Even though the predicition mehod requires a lot ofmachine resource to build, the final prediction outcome is quite accurate.
 
